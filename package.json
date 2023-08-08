@@ -1,0 +1,25 @@
+{
+  "name": "azbil-alarm-manager",
+  "version": "1.0.0",
+  "description": "cron push notification for azbil-alarm-manager",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aulyak/azbil-alarm-manager.git"
+  },
+  "author": "Aulya Khatulistivani",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aulyak/azbil-alarm-manager/issues"
+  },
+  "homepage": "https://github.com/aulyak/azbil-alarm-manager#readme",
+  "dependencies": {
+    "@kintone/rest-api-client": "^4.1.0",
+    "dotenv": "^16.3.1",
+    "luxon": "^3.3.0"
+  },
+  "type": "module"
+}
