@@ -18,6 +18,7 @@
   "homepage": "https://github.com/aulyak/azbil-alarm-manager#readme",
   "dependencies": {
     "@kintone/rest-api-client": "^4.1.0",
+    "axios": "^1.4.0",
     "dotenv": "^16.3.1",
     "luxon": "^3.3.0"
   },
