@@ -138,8 +138,8 @@ export const functions = {
       'to': userData.pushNotifToken,
       'notification': {
         'body': bodyMessage,
-        'title': 'Azbil Approval Status',
-        'subtitle': 'Approval Status Notification',
+        'title': `Azbil Reminder (${clockType})!`,
+        // 'subtitle': `${clockType} reminder.`,
       },
       // 'data': {
       //   'Record_number': idClockin,

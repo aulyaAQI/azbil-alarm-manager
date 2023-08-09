@@ -9,6 +9,7 @@ const dt = DateTime;
   const currentdDt = dt.now();
 
   const users = await functions.getAllActiveUsers();
+  const tableEmployeeWorkingShiftRef = apps.workingShiftManagement.fieldCode.table.employeeData;
   const arrOfEmployeeIdForAbid = users.map(item => item[apps.companyDirectory.fieldCode.employeeIdForAbid].value);
   const workingShifts = await functions.getWorkingShift(arrOfEmployeeIdForAbid);
   const defaultWorkingShift = workingShifts.find(item => item[apps.workingShiftManagement.fieldCode.default].value.length);
