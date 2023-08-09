@@ -66,8 +66,7 @@ export const functions = {
     const currentDateOnly = currentdDt.toFormat('yyyy-MM-dd');
     const midnightDtDummy = dt.fromFormat(`${currentDateOnly} 00:00`, 'yyyy-MM-dd HH:mm');
     
-    // const initDt = midnightDtDummy; // to be replaced by current date time
-    const initDt = currentdDt; // to be replaced by current date time
+    const initDt = dt.now();
     const [reminderTimeRecord] = reminderTimeRec;
     const notificationTime = parseInt(reminderTimeRecord[apps.notificationTimeManagement.fieldCode.notificationTime].value) * 1000;
 
@@ -101,11 +100,6 @@ export const functions = {
       const mapped = {
         name: item[apps.companyDirectory.fieldCode.employeeName].value,
         employeeIdForAbid: item[apps.companyDirectory.fieldCode.employeeIdForAbid].value,
-        // findShift: findShift ? true : false,
-        // schedule: {
-        //   startTime,
-        //   endTime
-        // },
         scheduleDelay: [
           {type: 'clockin', time: diffToStartTimeWithDelay},
           {type: 'clockout', time: diffToEndTimeWithDelay}
@@ -132,7 +126,15 @@ export const functions = {
       'Content-Type': 'application/json'
     };
 
-    const bodyMessage = `Hi ${employeeName}! Please don't forget to ${clockType} in  ${userData.notificationTime / 60000} minute(s)`;
+    const notificationTimeRaw = userData.notificationTime;
+    const notifTimeSeconds = notificationTimeRaw / 1000;
+    const notifTimeMinutesQuotient = Math.floor(notifTimeSeconds / 60) || ''; 
+    const notifSeconds = notifTimeSeconds % 60 || '';
+
+    const minuteText = notifTimeMinutesQuotient ? ' minute(s)' : '';
+    const secondsText = notifSeconds ? ' second(s)' : '';
+
+    const bodyMessage = `Hi ${employeeName}! Please don't forget to ${clockType} in  ${notifTimeMinutesQuotient} ${minuteText} ${notifSeconds} ${secondsText}.`;
 
     const body = {
       'to': userData.pushNotifToken,
@@ -146,10 +148,7 @@ export const functions = {
       //   'status': statusApproval,
       // },
     };
-
-    // console.log({body});
-    // return kintone.proxy('https://fcm.googleapis.com/fcm/send', 'POST', headers, body);
-    // return console.log({body});
+    
     return axios({
       method: 'post',
       url: process.env.FCM_BASE_URL + '/fcm/send',
@@ -158,7 +157,6 @@ export const functions = {
     });
   },
   scheduleNotif: (userData, schedule) => {
-    console.log(`notification for ${schedule.type} will be executed in ${schedule.time} ms`);
     setTimeout(() => {
       functions.sendPushNotif(userData, schedule).then(resp => {
         console.log({resp});
