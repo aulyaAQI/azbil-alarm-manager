@@ -4,11 +4,18 @@ import {apps} from './init.js';
 import {DateTime} from "luxon";
 import axios from "axios";
 import util from 'util';
+import winston from "winston";
 
 const dt = DateTime;
 
 const baseUrl = process.env.BASE_URL;
 const tableEmployeeWorkingShiftRef = apps.workingShiftManagement.fieldCode.table.employeeData;
+const logger = winston.createLogger({
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({filename: 'combined.log'}),
+  ]
+});
 
 const clientCompanyDirectory = new KintoneRestAPIClient({
   baseUrl,
@@ -108,6 +115,11 @@ export const functions = {
         pushNotifToken: item[apps.companyDirectory.fieldCode.notificationToken].value,
       }
 
+      logger.log({
+        level: 'info',
+        message
+      });
+
       return mapped;
     });
   },
@@ -115,7 +127,7 @@ export const functions = {
     const {
       name: employeeName,
     } = userData;
-    console.log(util.inspect(userData, {depth: null}));
+    // console.log(util.inspect(userData, {depth: null}));
 
     const clockType = schedule.type;
     const delay = schedule.time;
@@ -157,9 +169,10 @@ export const functions = {
     });
   },
   scheduleNotif: (userData, schedule) => {
+    console.log('object');
     setTimeout(() => {
       functions.sendPushNotif(userData, schedule).then(resp => {
-        console.log({resp});
+        // console.log({resp});
       }).catch(err => console.log({err}));
     }, schedule.time);
   }

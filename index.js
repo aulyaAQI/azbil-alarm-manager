@@ -14,9 +14,12 @@ const dt = DateTime;
   const defaultWorkingShift = workingShifts.find(item => item[apps.workingShiftManagement.fieldCode.default].value.length);
   const reminderTimeRec = await functions.getNotificationTime();
   const mapUser = functions.mapUserData(users, workingShifts, defaultWorkingShift, reminderTimeRec, currentdDt);
+  
+  console.log(util.inspect(mapUser, {depth: null}));
 
   mapUser.forEach(item => {
     item.scheduleDelay.forEach(schedule => {
+      // console.log(`push notif. ${item.name} ${schedule.type} in ${schedule.time}`);
       functions.scheduleNotif(item, schedule)
     }) 
   });
