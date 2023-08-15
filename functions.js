@@ -1,20 +1,29 @@
-import {KintoneRestAPIClient} from "@kintone/rest-api-client";
+import {KintoneRestAPIClient} from '@kintone/rest-api-client';
 import 'dotenv/config';
 import {apps} from './init.js';
-import {DateTime} from "luxon";
-import axios from "axios";
-import util from 'util';
-import winston from "winston";
+import {DateTime} from 'luxon';
+import axios from 'axios';
+import {createLogger, transports, format} from 'winston';
+import process from 'process';
+import 'winston-daily-rotate-file';
+const {combine, label, json} = format;
 
 const dt = DateTime;
 
 const baseUrl = process.env.BASE_URL;
 const tableEmployeeWorkingShiftRef = apps.workingShiftManagement.fieldCode.table.employeeData;
-const logger = winston.createLogger({
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({filename: 'combined.log'}),
-  ]
+
+const CATEGORY = 'Cron Log';
+const fileRotateTransport = new transports.DailyRotateFile({
+  filename: 'logs/rotate-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  maxFiles: '30d',
+});
+
+const logger = createLogger({
+  level: 'debug',
+  format: combine(label({label: CATEGORY}), json()),
+  transports: [fileRotateTransport, new transports.Console()],
 });
 
 const clientCompanyDirectory = new KintoneRestAPIClient({
@@ -45,6 +54,9 @@ const clientNotificationTimeManagement = new KintoneRestAPIClient({
 });
 
 export const functions = {
+  log: (logData) => {
+    logger.debug(logData);
+  },
   getAllActiveUsers: async () => {
     return clientCompanyDirectory.record.getAllRecords({
       app: process.env.COMPANY_DIRECTORY_APP_ID,
@@ -67,35 +79,35 @@ export const functions = {
     return clientNotificationTimeManagement.record.getAllRecords({
       app: process.env.NOTIFICATION_TIME_MANAGEMENT_APP_ID,
       condition,
-    })
+    });
   },
   mapUserData: (users, workingShifts, defaultWorkingShift, reminderTimeRec, currentdDt) => {
     const currentDateOnly = currentdDt.toFormat('yyyy-MM-dd');
     const midnightDtDummy = dt.fromFormat(`${currentDateOnly} 00:00`, 'yyyy-MM-dd HH:mm');
-    
+
     const initDt = dt.now();
     const [reminderTimeRecord] = reminderTimeRec;
-    const notificationTime = parseInt(reminderTimeRecord[apps.notificationTimeManagement.fieldCode.notificationTime].value) * 1000;
+    const notificationTime = parseInt(reminderTimeRecord[apps.notificationTimeManagement.fieldCode.notificationTime].value, 10) * 1000;
 
     return users.map(item => {
       const findShift = workingShifts.find(workRec => {
         const tableShift = workRec[tableEmployeeWorkingShiftRef.code].value;
-  
-        return tableShift.find(row => 
-          row.value[tableEmployeeWorkingShiftRef.columns.employeeId].value === 
+
+        return tableShift.find(row =>
+          row.value[tableEmployeeWorkingShiftRef.columns.employeeId].value ===
             item[apps.companyDirectory.fieldCode.employeeIdForAbid].value
         );
       });
 
-      const startTime = findShift ? 
-        findShift[apps.workingShiftManagement.fieldCode.startTime].value : 
+      const startTime = findShift ?
+        findShift[apps.workingShiftManagement.fieldCode.startTime].value :
         defaultWorkingShift[apps.workingShiftManagement.fieldCode.startTime].value;
       const endTime = findShift ?
         findShift[apps.workingShiftManagement.fieldCode.endTime].value :
         defaultWorkingShift[apps.workingShiftManagement.fieldCode.endTime].value;
 
-      const startLx = dt.fromFormat(`${currentDateOnly} ${startTime}` , 'yyyy-MM-dd HH:mm');
-      const endLx = dt.fromFormat(`${currentDateOnly} ${endTime}` , 'yyyy-MM-dd HH:mm');
+      const startLx = dt.fromFormat(`${currentDateOnly} ${startTime}`, 'yyyy-MM-dd HH:mm');
+      const endLx = dt.fromFormat(`${currentDateOnly} ${endTime}`, 'yyyy-MM-dd HH:mm');
 
       const diffToStartTime = startLx.diff(initDt).toObject();
       const diffToEndTime = endLx.diff(initDt).toObject();
@@ -103,7 +115,7 @@ export const functions = {
       const diffToEndTimeWithDelay = diffToEndTime.milliseconds - notificationTime;
       const diffToStartTimeRdbl = startLx.diff(initDt, ['hours', 'minutes']).toObject();
       const diffToEndTimeRdbl = endLx.diff(initDt, ['hours', 'minutes']).toObject();
-  
+
       const mapped = {
         name: item[apps.companyDirectory.fieldCode.employeeName].value,
         employeeIdForAbid: item[apps.companyDirectory.fieldCode.employeeIdForAbid].value,
@@ -113,12 +125,7 @@ export const functions = {
         ],
         notificationTime,
         pushNotifToken: item[apps.companyDirectory.fieldCode.notificationToken].value,
-      }
-
-      logger.log({
-        level: 'info',
-        message
-      });
+      };
 
       return mapped;
     });
@@ -140,13 +147,15 @@ export const functions = {
 
     const notificationTimeRaw = userData.notificationTime;
     const notifTimeSeconds = notificationTimeRaw / 1000;
-    const notifTimeMinutesQuotient = Math.floor(notifTimeSeconds / 60) || ''; 
+    const notifTimeMinutesQuotient = Math.floor(notifTimeSeconds / 60) || '';
     const notifSeconds = notifTimeSeconds % 60 || '';
 
     const minuteText = notifTimeMinutesQuotient ? ' minute(s)' : '';
     const secondsText = notifSeconds ? ' second(s)' : '';
 
-    const bodyMessage = `Hi ${employeeName}! Please don't forget to ${clockType} in  ${notifTimeMinutesQuotient} ${minuteText} ${notifSeconds} ${secondsText}.`;
+    const bodyMessage = `
+      Hi ${employeeName}! Please don't forget to ${clockType} in  ${notifTimeMinutesQuotient} ${minuteText} ${notifSeconds} ${secondsText}.
+    `;
 
     const body = {
       'to': userData.pushNotifToken,
@@ -160,7 +169,9 @@ export const functions = {
       //   'status': statusApproval,
       // },
     };
-    
+
+    functions.log({body});
+
     return axios({
       method: 'post',
       url: process.env.FCM_BASE_URL + '/fcm/send',
@@ -169,11 +180,14 @@ export const functions = {
     });
   },
   scheduleNotif: (userData, schedule) => {
-    console.log('object');
     setTimeout(() => {
       functions.sendPushNotif(userData, schedule).then(resp => {
         // console.log({resp});
-      }).catch(err => console.log({err}));
+        functions.log({resp: resp.data, related: {userData, schedule}});
+      }).catch(err => {
+        logger.error({err});
+        console.log({err});
+      });
     }, schedule.time);
   }
-}
+};
