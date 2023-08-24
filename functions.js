@@ -184,7 +184,7 @@ export const functions = {
       // },
     };
 
-    // functions.log({body});
+    functions.log({body});
 
     return axios({
       method: 'post',
@@ -219,8 +219,7 @@ export const functions = {
 
       setTimeout(() => {
         functions.sendPushNotif(userData, schedule).then(respPushNotif => {
-          console.log(respPushNotif.data, 'respPN');
-          // functions.log({respPushNotif: respPushNotif.data, related: {userData, schedule}});
+          functions.log({respPushNotif: respPushNotif.data, related: {userData, schedule}});
         }).catch(err => {
           logger.error({err});
           console.log({err});
