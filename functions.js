@@ -211,8 +211,6 @@ export const functions = {
     console.log({userData, schedule});
 
     functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
-      console.log(util.inspect(resp, true, undefined, true), 'resp');
-
       if (schedule.type === 'clockout' && !resp.length) return;
 
       console.log(schedule.type);
