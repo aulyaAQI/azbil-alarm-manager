@@ -1,11 +1,12 @@
 import {KintoneRestAPIClient} from '@kintone/rest-api-client';
-import {dotenv} from 'dotenv';
+import dotenv from 'dotenv';
 import {apps} from './init.js';
 import {DateTime} from 'luxon';
 import axios from 'axios';
 import {createLogger, transports, format} from 'winston';
 import process from 'process';
 import 'winston-daily-rotate-file';
+import util from 'util';
 const {combine, label, json} = format;
 
 dotenv.config({
@@ -53,6 +54,15 @@ const clientNotificationTimeManagement = new KintoneRestAPIClient({
   auth: {
     apiToken: [
       process.env.NOTIFICATION_TIME_MANAGEMENT_TOKEN
+    ]
+  }
+});
+
+const clientAttendanceReport = new KintoneRestAPIClient({
+  baseUrl,
+  auth: {
+    apiToken: [
+      process.env.ATTENDANCE_REPORT_APPLICATION_TOKEN
     ]
   }
 });
@@ -174,7 +184,7 @@ export const functions = {
       // },
     };
 
-    functions.log({body});
+    // functions.log({body});
 
     return axios({
       method: 'post',
@@ -183,15 +193,39 @@ export const functions = {
       data: body,
     });
   },
+  getAttendanceReport: (employeeId) => {
+    const condition = `
+      ${apps.attendanceReport.fieldCode.employeeId} = "${employeeId}" 
+      and Status in ("Clock In Success", "Clock In (With Approval)", "Clock In Waiting for Manager Approval")
+      and Created_datetime = TODAY()
+    `;
+
+    console.log({condition});
+
+    return clientAttendanceReport.record.getAllRecords({
+      app: process.env.ATTENDANCE_REPORT_APPLICATION_APP_ID,
+      condition,
+    });
+  },
   scheduleNotif: (userData, schedule) => {
-    setTimeout(() => {
-      functions.sendPushNotif(userData, schedule).then(resp => {
-        // console.log({resp});
-        functions.log({resp: resp.data, related: {userData, schedule}});
-      }).catch(err => {
-        logger.error({err});
-        console.log({err});
-      });
-    }, schedule.time);
+    console.log({userData, schedule});
+
+    functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
+      console.log(util.inspect(resp, true, undefined, true), 'resp');
+
+      if (schedule.type === 'clockout' && !resp.length) return;
+
+      console.log(schedule.type);
+
+      setTimeout(() => {
+        functions.sendPushNotif(userData, schedule).then(respPushNotif => {
+          console.log(respPushNotif.data, 'respPN');
+          // functions.log({respPushNotif: respPushNotif.data, related: {userData, schedule}});
+        }).catch(err => {
+          logger.error({err});
+          console.log({err});
+        });
+      }, schedule.time);
+    });
   }
 };
