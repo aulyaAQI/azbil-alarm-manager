@@ -1,5 +1,5 @@
 import {KintoneRestAPIClient} from '@kintone/rest-api-client';
-import 'dotenv/config';
+import {dotenv} from 'dotenv';
 import {apps} from './init.js';
 import {DateTime} from 'luxon';
 import axios from 'axios';
@@ -7,6 +7,10 @@ import {createLogger, transports, format} from 'winston';
 import process from 'process';
 import 'winston-daily-rotate-file';
 const {combine, label, json} = format;
+
+dotenv.config({
+  path: '/home/kuya/azbil-alarm-manager/.env'
+});
 
 const dt = DateTime;
 
