@@ -20,7 +20,7 @@ const tableEmployeeWorkingShiftRef = apps.workingShiftManagement.fieldCode.table
 
 const CATEGORY = 'Cron Log';
 const fileRotateTransport = new transports.DailyRotateFile({
-  filename: 'logs/rotate-%DATE%.log',
+  filename: '/home/kuya/azbil-alarm-manager/logs/rotate-%DATE%.log',
   datePattern: 'YYYY-MM-DD',
   maxFiles: '30d',
 });
@@ -200,16 +200,12 @@ export const functions = {
       and Created_datetime = TODAY()
     `;
 
-    console.log({condition});
-
     return clientAttendanceReport.record.getAllRecords({
       app: process.env.ATTENDANCE_REPORT_APPLICATION_APP_ID,
       condition,
     });
   },
   scheduleNotif: (userData, schedule) => {
-    console.log({userData, schedule});
-
     functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
       if (schedule.type === 'clockout' && !resp.length) return;
 
