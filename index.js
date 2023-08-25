@@ -1,6 +1,7 @@
 import {functions} from './functions.js';
 import {apps} from './init.js';
 import {DateTime} from 'luxon';
+import util, { inspect } from 'util';
 
 const dt = DateTime;
 
@@ -16,8 +17,8 @@ const dt = DateTime;
   const mapUser = functions.mapUserData(users, workingShifts, defaultWorkingShift, reminderTimeRec, currentdDt);
 
   mapUser.forEach(item => {
-    item.scheduleDelay.forEach(schedule => {
-      functions.scheduleNotif(item, schedule);
+    item.shifts.forEach(shift => {
+      functions.scheduleNotif(item, shift);
     });
   });
 

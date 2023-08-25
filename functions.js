@@ -6,7 +6,7 @@ import axios from 'axios';
 import {createLogger, transports, format} from 'winston';
 import process from 'process';
 import 'winston-daily-rotate-file';
-import util from 'util';
+import util, { inspect } from 'util';
 const {combine, label, json} = format;
 
 dotenv.config({
@@ -103,8 +103,10 @@ export const functions = {
     const [reminderTimeRecord] = reminderTimeRec;
     const notificationTime = parseInt(reminderTimeRecord[apps.notificationTimeManagement.fieldCode.notificationTime].value, 10) * 1000;
 
+    // const dummyUser = users.filter(item => item[apps.companyDirectory.fieldCode.employeeIdForAbid].value === '23305');
+
     return users.map(item => {
-      const findShift = workingShifts.find(workRec => {
+      const filterShift = workingShifts.filter(workRec => {
         const tableShift = workRec[tableEmployeeWorkingShiftRef.code].value;
 
         return tableShift.find(row =>
@@ -113,38 +115,54 @@ export const functions = {
         );
       });
 
-      const startTime = findShift ?
-        findShift[apps.workingShiftManagement.fieldCode.startTime].value :
-        defaultWorkingShift[apps.workingShiftManagement.fieldCode.startTime].value;
-      const endTime = findShift ?
-        findShift[apps.workingShiftManagement.fieldCode.endTime].value :
-        defaultWorkingShift[apps.workingShiftManagement.fieldCode.endTime].value;
+      const shifts = filterShift.map(item => {
+        const startTime = item ?
+          item[apps.workingShiftManagement.fieldCode.startTime].value :
+          defaultWorkingShift[apps.workingShiftManagement.fieldCode.startTime].value;
+        const endTime = item ?
+          item[apps.workingShiftManagement.fieldCode.endTime].value :
+          defaultWorkingShift[apps.workingShiftManagement.fieldCode.endTime].value;
 
-      const startLx = dt.fromFormat(`${currentDateOnly} ${startTime}`, 'yyyy-MM-dd HH:mm');
-      const endLx = dt.fromFormat(`${currentDateOnly} ${endTime}`, 'yyyy-MM-dd HH:mm');
+        const startLx = dt.fromFormat(`${currentDateOnly} ${startTime}`, 'yyyy-MM-dd HH:mm');
+        const endLx = dt.fromFormat(`${currentDateOnly} ${endTime}`, 'yyyy-MM-dd HH:mm');
+  
+        const diffToStartTime = startLx.diff(initDt).toObject();
+        const diffToEndTime = endLx.diff(initDt).toObject();
+        const diffToStartTimeWithDelay = diffToStartTime.milliseconds - notificationTime;
+        const diffToEndTimeWithDelay = diffToEndTime.milliseconds - notificationTime;
+        const diffToStartTimeRdbl = startLx.diff(initDt, ['hours', 'minutes']).toObject();
+        const diffToEndTimeRdbl = endLx.diff(initDt, ['hours', 'minutes']).toObject();
 
-      const diffToStartTime = startLx.diff(initDt).toObject();
-      const diffToEndTime = endLx.diff(initDt).toObject();
-      const diffToStartTimeWithDelay = diffToStartTime.milliseconds - notificationTime;
-      const diffToEndTimeWithDelay = diffToEndTime.milliseconds - notificationTime;
-      const diffToStartTimeRdbl = startLx.diff(initDt, ['hours', 'minutes']).toObject();
-      const diffToEndTimeRdbl = endLx.diff(initDt, ['hours', 'minutes']).toObject();
+        const scheduleDelay = [
+          {type: 'clockin', time: diffToStartTimeWithDelay},
+          {type: 'clockout', time: diffToEndTimeWithDelay}
+        ]
+        const sdContainer = [];
+
+        scheduleDelay.forEach(row => {
+          if (row.time >= 0) {
+            sdContainer.push(row);
+          }
+        });
+
+        return {
+          schedule: sdContainer,
+          notificationTime,
+        }
+      });
 
       const mapped = {
         name: item[apps.companyDirectory.fieldCode.employeeName].value,
         employeeIdForAbid: item[apps.companyDirectory.fieldCode.employeeIdForAbid].value,
-        scheduleDelay: [
-          {type: 'clockin', time: diffToStartTimeWithDelay},
-          {type: 'clockout', time: diffToEndTimeWithDelay}
-        ],
-        notificationTime,
+        shifts,
         pushNotifToken: item[apps.companyDirectory.fieldCode.notificationToken].value,
       };
 
       return mapped;
     });
   },
-  sendPushNotif: (userData, schedule) => {
+  sendPushNotif: (userData, schedule, notificationTime) => {
+    console.log(util.inspect(userData, undefined, null, true));
     const {
       name: employeeName,
     } = userData;
@@ -159,7 +177,7 @@ export const functions = {
       'Content-Type': 'application/json'
     };
 
-    const notificationTimeRaw = userData.notificationTime;
+    const notificationTimeRaw = notificationTime;
     const notifTimeSeconds = notificationTimeRaw / 1000;
     const notifTimeMinutesQuotient = Math.floor(notifTimeSeconds / 60) || '';
     const notifSeconds = notifTimeSeconds % 60 || '';
@@ -170,6 +188,8 @@ export const functions = {
     const bodyMessage = `
       Hi ${employeeName}! Please don't forget to ${clockType} in  ${notifTimeMinutesQuotient} ${minuteText} ${notifSeconds} ${secondsText}.
     `;
+
+    console.log({bodyMessage});
 
     const body = {
       'to': userData.pushNotifToken,
@@ -205,20 +225,21 @@ export const functions = {
       condition,
     });
   },
-  scheduleNotif: (userData, schedule) => {
-    functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
-      if (schedule.type === 'clockout' && !resp.length) return;
+  scheduleNotif: (userData, shift) => {
 
-      console.log(schedule.type);
-
-      setTimeout(() => {
-        functions.sendPushNotif(userData, schedule).then(respPushNotif => {
-          functions.log({respPushNotif: respPushNotif.data, related: {userData, schedule}});
-        }).catch(err => {
-          logger.error({err});
-          console.log({err});
-        });
-      }, schedule.time);
+    shift.schedule.forEach(item => {
+      functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
+        if (item.type === 'clockout' && !resp.length) return;
+  
+        setTimeout(() => {
+          functions.sendPushNotif(userData, item, shift.notificationTime).then(respPushNotif => {
+            functions.log({respPushNotif: respPushNotif.data, related: {userData, schedule: item}});
+          }).catch(err => {
+            logger.error({err});
+            console.log({err});
+          });
+        }, item.time);
+      });
     });
   }
 };
