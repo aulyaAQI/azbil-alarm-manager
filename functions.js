@@ -229,7 +229,7 @@ export const functions = {
 
     shift.schedule.forEach(item => {
       functions.getAttendanceReport(userData.employeeIdForAbid).then(resp => {
-        if (item.type === 'clockout' && !resp.length) return;
+        // if (item.type === 'clockout' && !resp.length) return;
   
         setTimeout(() => {
           functions.sendPushNotif(userData, item, shift.notificationTime).then(respPushNotif => {
